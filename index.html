@@ -2,263 +2,83 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<title>LUMINA Mobile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LUMINA</title>
 <style>
-body{margin:0;background:#111;overflow:hidden;touch-action:none}
-canvas{display:block;background:#222}
+body{margin:0;background:#1a1a1a;overflow:hidden;}
+canvas{display:block;margin:0 auto;background:#3a3a3a;}
 </style>
 </head>
 <body>
+
 <canvas id="game"></canvas>
+
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+canvas.width=400;
+canvas.height=600;
 
-function resize(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+let player={x:80,y:450};
+let flowers=[];
+
+function drawBackground(){
+let g=ctx.createLinearGradient(0,0,0,600);
+g.addColorStop(0,"#6e6e6e");
+g.addColorStop(1,"#b7b7b7");
+ctx.fillStyle=g;
+ctx.fillRect(0,0,400,600);
 }
-resize();
-window.addEventListener("resize",resize);
 
-let touch = {x:0,y:0,active:false};
+function drawPlayer(){
+ctx.beginPath();
+ctx.arc(player.x,player.y,15,0,Math.PI*2);
+ctx.fillStyle="#e8e8e8";
+ctx.fill();
+
+//ブースター
+ctx.fillStyle="#88ccff";
+ctx.fillRect(player.x-5,player.y+10,10,10);
+}
+
+function drawLight(){
+ctx.beginPath();
+ctx.moveTo(player.x,player.y);
+ctx.arc(player.x,player.y,120,-0.5,0.5);
+ctx.closePath();
+ctx.fillStyle="rgba(255,240,180,0.25)";
+ctx.fill();
+}
+
+function spawnFlower(x,y){
+flowers.push({x,y,size:0});
+}
+
+function updateFlowers(){
+flowers.forEach(f=>{
+f.size+=0.3;
+ctx.beginPath();
+ctx.arc(f.x,f.y,f.size,0,Math.PI*2);
+ctx.fillStyle="#ffd1dc";
+ctx.fill();
+});
+}
 
 canvas.addEventListener("touchstart",e=>{
-  const t=e.touches[0];
-  touch.x=t.clientX;
-  touch.y=t.clientY;
-  touch.active=true;
+let t=e.touches[0];
+spawnFlower(t.clientX,t.clientY);
 });
-canvas.addEventListener("touchmove",e=>{
-  const t=e.touches[0];
-  touch.x=t.clientX;
-  touch.y=t.clientY;
-});
-canvas.addEventListener("touchend",()=>touch.active=false);
-
-////////////////////
-// 仮想スティック
-////////////////////
-let stick = {x:100,y:canvas.height-100,dx:0,active:false};
-
-canvas.addEventListener("touchstart",e=>{
-  const t=e.touches[0];
-  if(t.clientX<200 && t.clientY>canvas.height-200){
-    stick.active=true;
-  }
-});
-
-canvas.addEventListener("touchmove",e=>{
-  if(!stick.active) return;
-  const t=e.touches[0];
-  stick.dx = (t.clientX-stick.x)/50;
-});
-
-canvas.addEventListener("touchend",()=>{stick.active=false;stick.dx=0});
-
-////////////////////
-// ジャンプボタン
-////////////////////
-let jumpBtn = {x:window.innerWidth-100,y:window.innerHeight-100,r:40,pressed:false};
-
-canvas.addEventListener("touchstart",e=>{
-  const t=e.touches[0];
-  let dx=t.clientX-jumpBtn.x;
-  let dy=t.clientY-jumpBtn.y;
-  if(Math.sqrt(dx*dx+dy*dy)<jumpBtn.r){
-    jumpBtn.pressed=true;
-  }
-});
-canvas.addEventListener("touchend",()=>jumpBtn.pressed=false);
-
-////////////////////
-// プレイヤー
-////////////////////
-const player={
-  x:100,y:300,w:30,h:36,
-  vx:0,vy:0,
-  speed:3,
-  jump:7,
-  gravity:0.3,
-  jumps:2,
-  energy:100
-};
-
-////////////////////
-// ステージ
-////////////////////
-const tiles=[];
-for(let i=0;i<40;i++){
-  tiles.push({x:i*80,y:canvas.height-60,w:80,h:60,color:false});
-}
-tiles.push({x:400,y:canvas.height-180,w:120,h:20,hidden:true,color:false});
-
-////////////////////
-// 敵
-////////////////////
-const noises=[{x:500,y:canvas.height-80,r:15,hp:100}];
-
-////////////////////
-// 装置
-////////////////////
-const device={x:650,y:canvas.height-80,r:20,charge:0,active:false};
-
-////////////////////
-// 列車
-////////////////////
-const train={x:820,y:canvas.height-80,w:80,h:40,energy:0,started:false};
-
-////////////////////
-// 更新
-////////////////////
-function update(){
-
-  // 移動（スティック）
-  player.vx = stick.dx * player.speed;
-
-  // ジャンプ
-  if(jumpBtn.pressed && player.jumps>0){
-    player.vy=-player.jump;
-    player.jumps--;
-    jumpBtn.pressed=false;
-  }
-
-  player.vy+=player.gravity;
-  player.x+=player.vx;
-  player.y+=player.vy;
-
-  // 床
-  tiles.forEach(t=>{
-    if(player.x<t.x+t.w && player.x+player.w>t.x &&
-       player.y+player.h<t.y+10 &&
-       player.y+player.h+player.vy>=t.y){
-        player.y=t.y-player.h;
-        player.vy=0;
-        player.jumps=2;
-    }
-  });
-
-  // 光方向
-  let lx = touch.active? touch.x : player.x+100;
-  let ly = touch.active? touch.y : player.y;
-  const angle = Math.atan2(ly-(player.y+15),lx-(player.x+15));
-
-  // タイル着色
-  tiles.forEach(t=>{
-    let cx=t.x+t.w/2,cy=t.y+t.h/2;
-    let dx=cx-(player.x+15);
-    let dy=cy-(player.y+15);
-    let dist=Math.sqrt(dx*dx+dy*dy);
-    let ang=Math.atan2(dy,dx);
-    if(dist<220 && Math.abs(ang-angle)<0.7) t.color=true;
-  });
-
-  // 敵浄化
-  noises.forEach(n=>{
-    let dx=n.x-(player.x+15);
-    let dy=n.y-(player.y+15);
-    let dist=Math.sqrt(dx*dx+dy*dy);
-    let ang=Math.atan2(dy,dx);
-    if(dist<220 && Math.abs(ang-angle)<0.7){
-      n.hp-=0.5;
-      if(n.hp<=0)n.dead=true;
-    }
-  });
-
-  // 装置
-  if(!device.active){
-    let dx=device.x-(player.x+15);
-    let dy=device.y-(player.y+15);
-    let dist=Math.sqrt(dx*dx+dy*dy);
-    let ang=Math.atan2(dy,dx);
-    if(dist<220 && Math.abs(ang-angle)<0.7){
-      device.charge+=0.4;
-      if(device.charge>100)device.active=true;
-    }
-  }
-
-  // 列車
-  if(device.active && !train.started){
-    train.energy+=0.2;
-    if(train.energy>100)train.started=true;
-  }
-}
-
-////////////////////
-// 描画
-////////////////////
-function draw(){
-
-  ctx.fillStyle="#555";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  tiles.forEach(t=>{
-    if(t.hidden && !t.color)return;
-    ctx.fillStyle=t.color?"#caffbf":"#777";
-    ctx.fillRect(t.x,t.y,t.w,t.h);
-  });
-
-  noises.forEach(n=>{
-    if(n.dead)return;
-    ctx.fillStyle="black";
-    ctx.beginPath();
-    ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
-    ctx.fill();
-  });
-
-  ctx.fillStyle=device.active?"#ffd6a5":"#666";
-  ctx.beginPath();
-  ctx.arc(device.x,device.y,device.r,0,Math.PI*2);
-  ctx.fill();
-
-  ctx.fillStyle=train.started?"#90dbf4":"#444";
-  ctx.fillRect(train.x,train.y,train.w,train.h);
-
-  ctx.fillStyle="#eee";
-  ctx.beginPath();
-  ctx.arc(player.x+15,player.y+18,15,0,Math.PI*2);
-  ctx.fill();
-
-  // 光
-  let lx = touch.active? touch.x : player.x+100;
-  let ly = touch.active? touch.y : player.y;
-  const ang = Math.atan2(ly-(player.y+15),lx-(player.x+15));
-
-  ctx.fillStyle="rgba(255,255,200,0.2)";
-  ctx.beginPath();
-  ctx.moveTo(player.x+15,player.y+15);
-  ctx.arc(player.x+15,player.y+15,220,ang-0.7,ang+0.7);
-  ctx.closePath();
-  ctx.fill();
-
-  // UI（バッテリー）
-  ctx.fillStyle="white";
-  ctx.fillRect(20,20,120,12);
-  ctx.fillStyle="lime";
-  ctx.fillRect(20,20,player.energy,12);
-
-  // 仮想スティック
-  ctx.globalAlpha=0.4;
-  ctx.beginPath();
-  ctx.arc(stick.x,stick.y,50,0,Math.PI*2);
-  ctx.fillStyle="#aaa";
-  ctx.fill();
-
-  // ジャンプボタン
-  ctx.beginPath();
-  ctx.arc(jumpBtn.x,jumpBtn.y,40,0,Math.PI*2);
-  ctx.fillStyle="#88f";
-  ctx.fill();
-  ctx.globalAlpha=1;
-}
 
 function loop(){
-  update();
-  draw();
-  requestAnimationFrame(loop);
+drawBackground();
+drawLight();
+drawPlayer();
+updateFlowers();
+requestAnimationFrame(loop);
 }
+
 loop();
 </script>
+
 </body>
 </html>
